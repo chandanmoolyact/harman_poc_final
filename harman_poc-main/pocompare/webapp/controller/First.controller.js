@@ -147,135 +147,243 @@ sap.ui.define([
 
         //Filter Bar Logic Start
 
+       onSearchFilterBar: function () {
+    var oModel = this.getView().getModel("excelModel");
+    
+    // 1. Keep a pristine copy of your original dataset (Only once on initial load)
+    if (!this._oOriginalData) {
+        this._oOriginalData = JSON.parse(JSON.stringify(oModel.getProperty("/data")));
+    }
+
+    // 2. Extract active filter criteria from the FilterBar
+    var oActiveFilters = {};
+    this.oFilterBar.getFilterGroupItems().forEach(function (oItem) {
+        var oControl = oItem.getControl();
+        var sName = oItem.getName();
+        var sClassName = oControl.getMetadata().getName();
+        
+        if (sClassName === "sap.m.DateRangeSelection") {
+            var oDateStart = oControl.getDateValue();
+            var oDateEnd = oControl.getSecondDateValue();
+            if (oDateStart && oDateEnd) {
+                var oStart = new Date(oDateStart); oStart.setHours(0,0,0,0);
+                var oEnd = new Date(oDateEnd); oEnd.setHours(23,59,59,999);
+                oActiveFilters[sName] = { isDateRange: true, start: oStart.getTime(), end: oEnd.getTime() };
+            }
+        } 
+        else if (sClassName === "sap.m.Select") {
+            var sSelectedKey = oControl.getSelectedKey();
+            if (sSelectedKey && sSelectedKey !== "") {
+                oActiveFilters[sName] = { isSelectKey: true, value: sSelectedKey.trim() };
+            }
+        } 
+        else {
+            var sValue = oControl.getValue ? oControl.getValue() : null;
+            if (sValue) {
+                oActiveFilters[sName] = sValue.toLowerCase().trim();
+            }
+        }
+    });
+
+    var aFilterKeys = Object.keys(oActiveFilters);
+
+    // If no filters are filled out, instantly restore original tree and exit
+    if (aFilterKeys.length === 0) {
+        oModel.setProperty("/data", JSON.parse(JSON.stringify(this._oOriginalData)));
+        return;
+    }
+
+    // 3. Deep evaluation function maintaining exact object reference links to _oOriginalData
+    function evaluateAndFilterTree(aNodes, aPendingKeys) {
+        if (!aNodes || aNodes.length === 0) { return []; }
+
+        return aNodes.map(function (oNode) {
+            // CRITICAL: Shallow copy structural tracking keys, but retain direct memory linkage to data properties
+            var oClonedNode = Object.assign({}, oNode);
+
+            // Check which of the remaining filter keys match the current node level
+            var aMatchedKeysAtThisLevel = aPendingKeys.filter(function (sKey) {
+                var filterConfig = oActiveFilters[sKey];
+                var nodeValue = oNode[sKey]; // Evaluated directly against the source object reference
+                
+                if (nodeValue === undefined || nodeValue === null) { return false; }
+
+                if (filterConfig && filterConfig.isDateRange) {
+                    var oNodeDate = new Date(nodeValue);
+                    if (isNaN(oNodeDate.getTime())) { return false; }
+                    return oNodeDate.getTime() >= filterConfig.start && oNodeDate.getTime() <= filterConfig.end;
+                }
+
+                if (filterConfig && filterConfig.isSelectKey) {
+                    return String(nodeValue).trim() === filterConfig.value;
+                }
+
+                return String(nodeValue).toLowerCase().includes(filterConfig);
+            });
+
+            // Calculate remaining filter keys
+            var aRemainingKeys = aPendingKeys.filter(function (sKey) {
+                return !aMatchedKeysAtThisLevel.includes(sKey);
+            });
+
+            // If this node has sub-items (children), dig deeper
+            if (oNode.children && oNode.children.length > 0) {
+                var aFilteredChildren = evaluateAndFilterTree(oNode.children, aRemainingKeys);
+                
+                if (aFilteredChildren.length > 0) {
+                    oClonedNode.children = aFilteredChildren;
+                    oClonedNode.PanelVisible = true;
+                    oClonedNode.NextPanelVisible = true;
+                    return oClonedNode;
+                }
+            }
+
+            // If no children left, check if all active filters were cleared along this line
+            if (aRemainingKeys.length === 0) {
+                // Ensure adjustments made to oClonedNode map back directly to the real reference item
+                return oNode; 
+            }
+
+            return null;
+        }).filter(Boolean);
+    }
+
+    // Pass the master data directly to preserve pointer linkages
+    var aFilteredData = evaluateAndFilterTree(this._oOriginalData, aFilterKeys);
+    oModel.setProperty("/data", aFilteredData);
+},
         // onSearchFilterBar: function () {
         //     var oModel = this.getView().getModel("excelModel");
-        //     // Backup your original unfiltered dataset to a window/controller property during your original load:
+            
+        //     // 1. Keep a pristine copy of your original dataset
         //     if (!this._oOriginalData) {
         //         this._oOriginalData = JSON.parse(JSON.stringify(oModel.getProperty("/data")));
         //     }
 
-        //     // 1. Extract search criteria from inputs dynamically
-        //     var oFilters = {};
+        //     // 2. Extract active filter criteria from the FilterBar
+        //     var oActiveFilters = {};
         //     this.oFilterBar.getFilterGroupItems().forEach(function (oItem) {
-        //         var sValue = oItem.getControl().getValue();
-        //         if (sValue) {
-        //             oFilters[oItem.getName()] = sValue.toLowerCase().trim();
+        //         var oControl = oItem.getControl();
+        //         var sName = oItem.getName();
+        //         var sClassName = oControl.getMetadata().getName();
+                
+        //         // --- A. Handle DateRangeSelection ---
+        //         if (sClassName === "sap.m.DateRangeSelection") {
+        //             var oDateStart = oControl.getDateValue();
+        //             var oDateEnd = oControl.getSecondDateValue();
+                    
+        //             if (oDateStart && oDateEnd) {
+        //                 var oStart = new Date(oDateStart); oStart.setHours(0,0,0,0);
+        //                 var oEnd = new Date(oDateEnd); oEnd.setHours(23,59,59,999);
+                        
+        //                 oActiveFilters[sName] = {
+        //                     isDateRange: true,
+        //                     start: oStart.getTime(),
+        //                     end: oEnd.getTime()
+        //                 };
+        //             }
+        //         } 
+        //         // --- B. Handle Select (Dropdown) ---
+        //         else if (sClassName === "sap.m.Select") {
+        //             var sSelectedKey = oControl.getSelectedKey();
+        //             // Only add to active filters if a valid key is selected (ignores empty strings/default "Select All" keys)
+        //             if (sSelectedKey && sSelectedKey !== "") {
+        //                 oActiveFilters[sName] = {
+        //                     isSelectKey: true,
+        //                     value: sSelectedKey.trim() // Keep exact casing if needed, or handle matching below
+        //                 };
+        //             }
+        //         } 
+        //         // --- C. Handle Regular Inputs ---
+        //         else {
+        //             var sValue = oControl.getValue ? oControl.getValue() : null;
+        //             if (sValue) {
+        //                 oActiveFilters[sName] = sValue.toLowerCase().trim();
+        //             }
         //         }
         //     });
 
-        //     // If no filters are applied, restore full dataset
-        //     if (Object.keys(oFilters).length === 0) {
+        //     var aFilterKeys = Object.keys(oActiveFilters);
+
+        //     // If no filters are filled out, instantly restore original tree and exit
+        //     if (aFilterKeys.length === 0) {
         //         oModel.setProperty("/data", JSON.parse(JSON.stringify(this._oOriginalData)));
         //         return;
         //     }
 
-        //     // 2. Recursive Deep-Tree Filtering function
-        //     function filterTree(aNodes) {
-        //         return aNodes.filter(function (oNode) {
-        //             // Check if current node matches ANY of the active filter fields
-        //             var bCurrentNodeMatches = Object.keys(oFilters).some(function (sKey) {
-        //                 return oNode[sKey] && String(oNode[sKey]).toLowerCase().includes(oFilters[sKey]);
+        //     // 3. Deep evaluation function to ensure ALL active filter keys are satisfied in this branch
+        //     function evaluateAndFilterTree(aNodes, aPendingKeys) {
+        //         if (!aNodes || aNodes.length === 0) { return []; }
+
+        //         return aNodes.map(function (oNode) {
+        //             // Create a deep copy of the node so we don't manipulate the master array
+        //             var oClonedNode = Object.assign({}, oNode);
+
+        //             // Check which of the remaining filter keys match the current node level
+        //             var aMatchedKeysAtThisLevel = aPendingKeys.filter(function (sKey) {
+        //                 var filterConfig = oActiveFilters[sKey];
+        //                 var nodeValue = oClonedNode[sKey];
+                        
+        //                 // If the node doesn't possess this property at its level, it can't match it here
+        //                 if (nodeValue === undefined || nodeValue === null) { return false; }
+
+        //                 // --- Handle Date Range Filter Type ---
+        //                 if (filterConfig && filterConfig.isDateRange) {
+        //                     var oNodeDate = new Date(nodeValue);
+        //                     if (isNaN(oNodeDate.getTime())) { return false; }
+                            
+        //                     var iNodeTime = oNodeDate.getTime();
+        //                     return iNodeTime >= filterConfig.start && iNodeTime <= filterConfig.end;
+        //                 }
+
+        //                 // --- Handle Select Dropdown Key Type ---
+        //                 if (filterConfig && filterConfig.isSelectKey) {
+        //                     // Direct strict comparison (or .toLowerCase() comparison if data values might mismatch in casing)
+        //                     return String(nodeValue).trim() === filterConfig.value;
+        //                 }
+
+        //                 // --- Handle Regular String Filters ---
+        //                 return String(nodeValue).toLowerCase().includes(filterConfig);
         //             });
 
-        //             // Recursively look into children arrays if they exist
-        //             if (oNode.children && oNode.children.length > 0) {
-        //                 var aFilteredChildren = filterTree(oNode.children);
+        //             // Calculate remaining filter keys that still need to be satisfied by children
+        //             var aRemainingKeys = aPendingKeys.filter(function (sKey) {
+        //                 return !aMatchedKeysAtThisLevel.includes(sKey);
+        //             });
+
+        //             // If this node has sub-items (children), dig deeper with the remaining un-matched filters
+        //             if (oClonedNode.children && oClonedNode.children.length > 0) {
+        //                 var aFilteredChildren = evaluateAndFilterTree(oClonedNode.children, aRemainingKeys);
+                        
         //                 if (aFilteredChildren.length > 0) {
-        //                     oNode.children = aFilteredChildren;
-        //                     // Auto-expand parents that contain matching child criteria
-        //                     oNode.PanelVisible = true; 
-        //                     oNode.NextPanelVisible = true;
-        //                     return true; 
+        //                     oClonedNode.children = aFilteredChildren;
+        //                     // Automatically keep hierarchy open to show where the matches occurred
+        //                     oClonedNode.PanelVisible = true;
+        //                     oClonedNode.NextPanelVisible = true;
+                            
+        //                     // If children successfully cleared out all remaining criteria, this node is valid!
+        //                     return oClonedNode;
         //                 }
         //             }
 
-        //             return bCurrentNodeMatches;
-        //         });
+        //             // If there are no children left, but we satisfied ALL active filters along this path:
+        //             if (aRemainingKeys.length === 0) {
+        //                 return oClonedNode;
+        //             }
+
+        //             return null; // Drop this node; it didn't fulfill the "AND" requirements
+        //         }).filter(Boolean); // Clear out null entries
         //     }
 
-        //     // 3. Process, deep-clone and update model binding
+        //     // 4. Run the data clone through the custom AND pipeline and update view
         //     var aDeepCopyOfData = JSON.parse(JSON.stringify(this._oOriginalData));
-        //     var aFilteredData = filterTree(aDeepCopyOfData);
+        //     var aFilteredData = evaluateAndFilterTree(aDeepCopyOfData, aFilterKeys);
             
         //     oModel.setProperty("/data", aFilteredData);
+
+        //     this._injectL3ScrollStyles();
+        //     this._patchL3ScrollDom();
         // },
-        onSearchFilterBar: function () {
-            var oModel = this.getView().getModel("excelModel");
-            
-            // 1. Keep a pristine copy of your original dataset
-            if (!this._oOriginalData) {
-                this._oOriginalData = JSON.parse(JSON.stringify(oModel.getProperty("/data")));
-            }
-
-            // 2. Extract active filter criteria from the FilterBar
-            var oActiveFilters = {};
-            this.oFilterBar.getFilterGroupItems().forEach(function (oItem) {
-                var sValue = oItem.getControl().getValue();
-                if (sValue) {
-                    oActiveFilters[oItem.getName()] = sValue.toLowerCase().trim();
-                }
-            });
-
-            var aFilterKeys = Object.keys(oActiveFilters);
-
-            // If no filters are filled out, instantly restore original tree and exit
-            if (aFilterKeys.length === 0) {
-                oModel.setProperty("/data", JSON.parse(JSON.stringify(this._oOriginalData)));
-                return;
-            }
-
-            // 3. Deep evaluation function to ensure ALL active filter keys are satisfied in this branch
-            function evaluateAndFilterTree(aNodes, aPendingKeys) {
-                if (!aNodes || aNodes.length === 0) { return []; }
-
-                return aNodes.map(function (oNode) {
-                    // Create a deep copy of the node so we don't manipulate the master array
-                    var oClonedNode = Object.assign({}, oNode);
-
-                    // Check which of the remaining filter keys match the current node level
-                    var aMatchedKeysAtThisLevel = aPendingKeys.filter(function (sKey) {
-                        return oClonedNode[sKey] && String(oClonedNode[sKey]).toLowerCase().includes(oActiveFilters[sKey]);
-                    });
-
-                    // Calculate remaining filter keys that still need to be satisfied by children
-                    var aRemainingKeys = aPendingKeys.filter(function (sKey) {
-                        return !aMatchedKeysAtThisLevel.includes(sKey);
-                    });
-
-                    // If this node has sub-items (children), dig deeper with the remaining un-matched filters
-                    if (oClonedNode.children && oClonedNode.children.length > 0) {
-                        // If a parent node already matched everything, children just inherit all filters as satisfied
-                        var aKeysToPassDown = aRemainingKeys; 
-                        
-                        var aFilteredChildren = evaluateAndFilterTree(oClonedNode.children, aKeysToPassDown);
-                        
-                        if (aFilteredChildren.length > 0) {
-                            oClonedNode.children = aFilteredChildren;
-                            // Automatically keep hierarchy open to show where the matches occurred
-                            oClonedNode.PanelVisible = true;
-                            oClonedNode.NextPanelVisible = true;
-                            
-                            // If children successfully cleared out all remaining criteria, this node is valid!
-                            return oClonedNode;
-                        }
-                    }
-
-                    // If there are no children left, but we satisfied ALL active filters along this path:
-                    if (aRemainingKeys.length === 0) {
-                        return oClonedNode;
-                    }
-
-                    return null; // Drop this node; it didn't fulfill the "AND" requirements
-                }).filter(Boolean); // Clear out null entries
-            }
-
-            // 4. Run the data clone through the custom AND pipeline and update view
-            var aDeepCopyOfData = JSON.parse(JSON.stringify(this._oOriginalData));
-            var aFilteredData = evaluateAndFilterTree(aDeepCopyOfData, aFilterKeys);
-            
-            oModel.setProperty("/data", aFilteredData);
-        },
-
         /**
          * CSS rules for L3 scroll styling and popin overflow.
          */
@@ -509,6 +617,7 @@ sap.ui.define([
                         RejectReason: row["Comment"],
                         ActionDate: formatDate(row["Action Date"]),
                         EmailFlag: row["Email Flag"]||row["EmailFlag"],   
+                        EDIFlag: row["EDI Flag"]||row["EDIFlag"],  
                         QlikQty: row["Qlik Qty"] || row["QLIK Qty"],
                         QlikDate: formatDate(row["Qlik Date"] || row["QLIK Date"]),
                         DateState: "None",
@@ -555,6 +664,7 @@ sap.ui.define([
                         PODate: item.PODate,
                         PanelVisible: item.PanelVisible,
                         DocumentDate: item.DocumentDate,
+                        EDIHFlag: item.EDIFlag,
                         // We use a temporary map to easily group Level 2 items without duplicating them
                         _level2ItemsMap: {}, 
                         children: [] 
@@ -586,6 +696,7 @@ sap.ui.define([
                         StorageLocation : item.StorageLocation,
                         NextPanelVisible: false,
                         DeliveryDate: item.DeliveryDate,
+                        EDILIFlag: item.EDIFlag,
                         children: [] // This will hold the Level 3 sequences
 
                     };
@@ -620,6 +731,7 @@ sap.ui.define([
                     QlikQty: item.QlikQty,
                     QlikDate: item.QlikDate,
                     ActionDate:item.ActionDate,   
+                    EDIFlag:item.EDIFlag,   
                     DateState: "None",
                     DateMsg: "",
                     EmailFlag: item.EmailFlag
@@ -674,88 +786,167 @@ sap.ui.define([
         },
         onDownloadTemplate: function () {
         },
-        onSaveTemplate: async function (oEvent) {
-            var treeData = this.getView().getModel("excelModel").getProperty("/data");
+        // onSaveTemplate: async function (oEvent) {
+        //     var treeData = this.getView().getModel("excelModel").getProperty("/data");
 
 
 
-            var oCAPModel = this.getOwnerComponent().getModel("capService"); 
-            var oActionContext = oCAPModel.bindContext("/sendMailContent(...)");
-            // oActionContext.setParameter("poHeader", JSON.stringify(treeData));
-            oActionContext.setParameter("poHeader", treeData);
-            try{
-                var oResults=await oActionContext.execute()
-                treeData=oActionContext.getBoundContext().getObject().value[0]?.data
-                console.log(oResults)
-            }catch(oError){
-                console.log(oError)
-            }
-            var flatExcelData = this.transformTreeToFlatData(treeData);
-            var sGeneratedMsg=this.getChangeSummary(this.aOldData,treeData)
+        //     var oCAPModel = this.getOwnerComponent().getModel("capService"); 
+        //     var oActionContext = oCAPModel.bindContext("/sendMailContent(...)");
+        //     // oActionContext.setParameter("poHeader", JSON.stringify(treeData));
+        //     oActionContext.setParameter("poHeader", treeData);
+        //     try{
+        //         var oResults=await oActionContext.execute()
+        //         treeData=oActionContext.getBoundContext().getObject().value[0]?.data
+        //         console.log(oResults)
+        //     }catch(oError){
+        //         console.log(oError)
+        //     }
+        //     var flatExcelData = this.transformTreeToFlatData(treeData);
+        //     var sGeneratedMsg=this.getChangeSummary(this.aOldData,treeData)
 
-            var aCols = [
-                // Level 1
-                { label: 'Vendor Code', property: 'VendorCode', type: 'string' },
-                { label: 'Vendor name', property: 'VendorName', type: 'string' },
-                { label: 'PO Number', property: 'PONumber', type: 'string' },
-                { label: 'PO date', property: 'PODate', type: 'string' },
-                // Level 2
-                { label: 'PO Line Item', property: 'POLineItem', type: 'string' },
-                { label: 'Material', property: 'Material', type: 'string' },
-                { label: 'Material Description', property: 'MaterialDesc', type: 'string' },
-                { label: 'PO Quantity', property: 'POQuantity', type: 'string' },
-                { label: 'Unit of Measure', property: 'UOM', type: 'string' },
-                { label: 'Delivery Date', property: 'DeliveryDate', type: 'string' },
-                { label: 'Net Price', property: 'NetPrice', type: 'string' },
-                { label: 'Currency', property: 'Currency', type: 'string' },
-                { label: 'Per', property: 'Per', type: 'string' },
-                { label: 'Material Group', property: 'MaterialGroup', type: 'string' },
-                { label: 'Plant', property: 'Plant', type: 'string' },
-                { label: 'Storage Location', property: 'StorageLocation', type: 'string' },
-                // Level 3
-                { label: 'Confirmation category', property: 'ConfirmationCategory', type: 'string' },
-                { label: 'Delivery Date Category', property: 'FDDCategory', type: 'string' },
-                { label: 'Quantity', property: 'Quantity', type: 'string' },
-                { label: 'Reference', property: 'Reference', type: 'string' },
-                { label: 'Created on Date', property: 'CreationDate', type: 'string' },
-                { label: 'Inbound Delivery', property: 'InboundDelivery', type: 'string' },
-                { label: 'Item', property: 'Item', type: 'string' },
-                { label: 'Higher Level Item', property: 'HLItem', type: 'string' },
-                { label: 'Batch', property: 'Batch', type: 'string' },
-                { label: 'Quantity Reduced', property: 'QtyReduced', type: 'string' },
-                { label: 'MRP relevant', property: 'MRPRelevant', type: 'string' },
-                { label: 'MPN Material', property: 'MRPMaterial', type: 'string' },
-                { label: 'Creation Indicator', property: 'CreationIndicator', type: 'string' },
-                { label: 'Sequence Number', property: 'SequenceNumber', type: 'string' },
-                { label: 'Status', property: 'StatusFlag', type: 'string' },
-                { label: 'Comment', property: 'RejectReason', type: 'string' },
-                { label: 'Qlik Qty', property: 'QlikQty', type: 'string' },
-                { label: 'Qlik Date', property: 'QlikDate', type: 'string' },
-                { label: 'Rejection Date', property: 'ActionDate', type: 'string' },
-                { label: 'Email Flag', property: 'EmailFlag', type: 'string' },
-                // Level 4
-            ];
-            // 3. Configure and start the export
-            var dNewDate=new Date().toLocaleString()
-            var sFileName=`BTP_Harman_POC_Template_${dNewDate}.xlsx`
-            var oSettings = {
-                workbook: { columns: aCols },
-                dataSource: flatExcelData,
-                fileName: sFileName
-            };
+        //     var aCols = [
+        //         // Level 1
+        //         { label: 'Vendor Code', property: 'VendorCode', type: 'string' },
+        //         { label: 'Vendor name', property: 'VendorName', type: 'string' },
+        //         { label: 'PO Number', property: 'PONumber', type: 'string' },
+        //         { label: 'PO date', property: 'PODate', type: 'string' },
+        //         // Level 2
+        //         { label: 'PO Line Item', property: 'POLineItem', type: 'string' },
+        //         { label: 'Material', property: 'Material', type: 'string' },
+        //         { label: 'Material Description', property: 'MaterialDesc', type: 'string' },
+        //         { label: 'PO Quantity', property: 'POQuantity', type: 'string' },
+        //         { label: 'Unit of Measure', property: 'UOM', type: 'string' },
+        //         { label: 'Delivery Date', property: 'DeliveryDate', type: 'string' },
+        //         { label: 'Net Price', property: 'NetPrice', type: 'string' },
+        //         { label: 'Currency', property: 'Currency', type: 'string' },
+        //         { label: 'Per', property: 'Per', type: 'string' },
+        //         { label: 'Material Group', property: 'MaterialGroup', type: 'string' },
+        //         { label: 'Plant', property: 'Plant', type: 'string' },
+        //         { label: 'Storage Location', property: 'StorageLocation', type: 'string' },
+        //         // Level 3
+        //         { label: 'Confirmation category', property: 'ConfirmationCategory', type: 'string' },
+        //         { label: 'Delivery Date Category', property: 'FDDCategory', type: 'string' },
+        //         { label: 'Quantity', property: 'Quantity', type: 'string' },
+        //         { label: 'Reference', property: 'Reference', type: 'string' },
+        //         { label: 'Created on Date', property: 'CreationDate', type: 'string' },
+        //         { label: 'Inbound Delivery', property: 'InboundDelivery', type: 'string' },
+        //         { label: 'Item', property: 'Item', type: 'string' },
+        //         { label: 'Higher Level Item', property: 'HLItem', type: 'string' },
+        //         { label: 'Batch', property: 'Batch', type: 'string' },
+        //         { label: 'Quantity Reduced', property: 'QtyReduced', type: 'string' },
+        //         { label: 'MRP relevant', property: 'MRPRelevant', type: 'string' },
+        //         { label: 'MPN Material', property: 'MRPMaterial', type: 'string' },
+        //         { label: 'Creation Indicator', property: 'CreationIndicator', type: 'string' },
+        //         { label: 'Sequence Number', property: 'SequenceNumber', type: 'string' },
+        //         { label: 'Status', property: 'StatusFlag', type: 'string' },
+        //         { label: 'Comment', property: 'RejectReason', type: 'string' },
+        //         { label: 'Qlik Qty', property: 'QlikQty', type: 'string' },
+        //         { label: 'Qlik Date', property: 'QlikDate', type: 'string' },
+        //         { label: 'Rejection Date', property: 'ActionDate', type: 'string' },
+        //         { label: 'Email Flag', property: 'EmailFlag', type: 'string' },
+        //         { label: 'EDI Flag', property: 'EDIFlag', type: 'string' },
+        //         // Level 4
+        //     ];
+        //     // 3. Configure and start the export
+        //     var dNewDate=new Date().toLocaleString()
+        //     var sFileName=`BTP_Harman_POC_Template_${dNewDate}.xlsx`
+        //     var oSettings = {
+        //         workbook: { columns: aCols },
+        //         dataSource: flatExcelData,
+        //         fileName: sFileName
+        //     };
 
-            if(sGeneratedMsg.includes("No changes to save")){
+        //     if(sGeneratedMsg.includes("No changes to save")){
                 
-            }else{
-                var oSheet = new Spreadsheet(oSettings);
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-            }
+        //     }else{
+        //         var oSheet = new Spreadsheet(oSettings);
+        //         oSheet.build().finally(function () {
+        //             oSheet.destroy();
+        //         });
+        //     }
 
-            // this.aOldData=JSON.parse(JSON.stringify(treeData));
-            this.onGenSaveMessage(sGeneratedMsg,treeData)
-        },
+        //     // this.aOldData=JSON.parse(JSON.stringify(treeData));
+        //     this.onGenSaveMessage(sGeneratedMsg,treeData)
+        // },
+        onSaveTemplate: async function (oEvent) {
+    // 1. Fetch data directly from your master dataset array, ensuring all 19 rows are caught
+    // even if the user is currently looking at a filtered set of 3 rows!
+    var treeData = JSON.parse(JSON.stringify(this._oOriginalData || this.getView().getModel("excelModel").getProperty("/data")));
+
+    var oCAPModel = this.getOwnerComponent().getModel("capService"); 
+    var oActionContext = oCAPModel.bindContext("/sendMailContent(...)");
+    oActionContext.setParameter("poHeader", treeData);
+
+    try {
+        var oResults = await oActionContext.execute();
+        treeData = oActionContext.getBoundContext().getObject().value[0]?.data;
+        console.log(oResults);
+    } catch (oError) {
+        console.log(oError);
+    }
+
+    // Convert the full 19-record set into spreadsheet flat rows
+    var flatExcelData = this.transformTreeToFlatData(treeData);
+    var sGeneratedMsg = this.getChangeSummary(this.aOldData, treeData);
+
+    var aCols = [
+        { label: 'Vendor Code', property: 'VendorCode', type: 'string' },
+        { label: 'Vendor name', property: 'VendorName', type: 'string' },
+        { label: 'PO Number', property: 'PONumber', type: 'string' },
+        { label: 'PO date', property: 'PODate', type: 'string' },
+        { label: 'PO Line Item', property: 'POLineItem', type: 'string' },
+        { label: 'Material', property: 'Material', type: 'string' },
+        { label: 'Material Description', property: 'MaterialDesc', type: 'string' },
+        { label: 'PO Quantity', property: 'POQuantity', type: 'string' },
+        { label: 'Unit of Measure', property: 'UOM', type: 'string' },
+        { label: 'Delivery Date', property: 'DeliveryDate', type: 'string' },
+        { label: 'Net Price', property: 'NetPrice', type: 'string' },
+        { label: 'Currency', property: 'Currency', type: 'string' },
+        { label: 'Per', property: 'Per', type: 'string' },
+        { label: 'Material Group', property: 'MaterialGroup', type: 'string' },
+        { label: 'Plant', property: 'Plant', type: 'string' },
+        { label: 'Storage Location', property: 'StorageLocation', type: 'string' },
+        { label: 'Confirmation category', property: 'ConfirmationCategory', type: 'string' },
+        { label: 'Delivery Date Category', property: 'FDDCategory', type: 'string' },
+        { label: 'Quantity', property: 'Quantity', type: 'string' },
+        { label: 'Reference', property: 'Reference', type: 'string' },
+        { label: 'Created on Date', property: 'CreationDate', type: 'string' },
+        { label: 'Inbound Delivery', property: 'InboundDelivery', type: 'string' },
+        { label: 'Item', property: 'Item', type: 'string' },
+        { label: 'Higher Level Item', property: 'HLItem', type: 'string' },
+        { label: 'Batch', property: 'Batch', type: 'string' },
+        { label: 'Quantity Reduced', property: 'QtyReduced', type: 'string' },
+        { label: 'MRP relevant', property: 'MRPRelevant', type: 'string' },
+        { label: 'MPN Material', property: 'MRPMaterial', type: 'string' },
+        { label: 'Creation Indicator', property: 'CreationIndicator', type: 'string' },
+        { label: 'Sequence Number', property: 'SequenceNumber', type: 'string' },
+        { label: 'Status', property: 'StatusFlag', type: 'string' },
+        { label: 'Comment', property: 'RejectReason', type: 'string' },
+        { label: 'Qlik Qty', property: 'QlikQty', type: 'string' },
+        { label: 'Qlik Date', property: 'QlikDate', type: 'string' },
+        { label: 'Rejection Date', property: 'ActionDate', type: 'string' },
+        { label: 'Email Flag', property: 'EmailFlag', type: 'string' },
+        { label: 'EDI Flag', property: 'EDIFlag', type: 'string' }
+    ];
+
+    var dNewDate = new Date().toLocaleString().replace(/[/\\:,]/g, "-");
+    var sFileName = `BTP_Harman_POC_Template_${dNewDate}.xlsx`;
+    var oSettings = {
+        workbook: { columns: aCols },
+        dataSource: flatExcelData,
+        fileName: sFileName
+    };
+
+    if (!sGeneratedMsg.includes("No changes to save")) {
+        var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+        oSheet.build().finally(function () {
+            oSheet.destroy();
+        });
+    }
+
+    this.onGenSaveMessage(sGeneratedMsg, treeData);
+},
         onGenSaveMessage: function (sMsg,treeData) {
             var that=this
 			MessageBox.success(sMsg, {
@@ -939,7 +1130,8 @@ sap.ui.define([
                                     ActionDate:subItemNode.ActionDate, 
                                     QlikQty: subItemNode.QlikQty,
                                     QlikDate: subItemNode.QlikDate,
-                                    EmailFlag: subItemNode.EmailFlag
+                                    EmailFlag: subItemNode.EmailFlag,
+                                    EDIFlag: subItemNode.EDIFlag
                                 };
                                 flatData.push(flatRow);
                             });
@@ -1128,6 +1320,7 @@ sap.ui.define([
                             var sActivePath = this.oRejectDialog.data("activePath");
 
                             oModel.setProperty(sActivePath + "/StatusFlag", "R");
+                            oModel.setProperty(sActivePath + "/EDIFlag", "A");
                             oModel.setProperty(sActivePath + "/RejectReason", sReason);
                             var oToday = new Date().toLocaleDateString(); 
                             oModel.setProperty(sActivePath + "/ActionDate", oToday);
@@ -1149,6 +1342,29 @@ sap.ui.define([
             }
             this.oRejectDialog.data("activePath", sRejPath);
             this.oRejectDialog.open();
+        },
+        onAcceptVendorTreeRow: function (oEvent) {
+            this.convertLIFlag(false);
+            this.convertSubLIFlag(false)
+            var oResourceBundle = this.getOwnerComponent().getModel("i18n").getResourceBundle();
+            var oModel = this.getOwnerComponent().getModel("excelModel");
+            
+            // Get the binding context of the row where the button was clicked
+            var oContext = oEvent.getSource().getBindingContext("excelModel");
+            var sAppPath = oContext.getPath();
+            sap.m.MessageBox.confirm("Are you sure you want to approve this item?", {
+                title: "Approve PO Item",
+                onClose: function (oAction) {
+                    if (oAction === sap.m.MessageBox.Action.OK) {
+                        oModel.setProperty(sAppPath + "/StatusFlag", "A");
+                        oModel.setProperty(sAppPath + "/EDIFlag", "A");
+                        var oToday = new Date().toLocaleDateString(); 
+                        oModel.setProperty(sAppPath + "/ActionDate", oToday);
+                        oModel.refresh(true);
+                        sap.m.MessageToast.show("Record approved successfully.");
+                    }
+                }.bind(this) // Crucial: bind 'this' so you can still access this.convertLIFlag
+            });
         },
         _closeDialog: function () {
             if (this._pCompareDialog) {

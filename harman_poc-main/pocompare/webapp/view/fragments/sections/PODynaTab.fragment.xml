@@ -24,6 +24,7 @@
             <Column width="7rem"  hAlign="Begin"><Text text="PO Number"          tooltip="PO Number" wrapping="false"/></Column>
             <Column width="5rem"  hAlign="Begin"><Text text="Vendor"             tooltip="Vendor Code" wrapping="false"/></Column>
             <Column hAlign="Begin"><Text text="Vendor Description" tooltip="Vendor Description" wrapping="false"/></Column>
+            <Column hAlign="Begin"><Text text="Status" tooltip="Status" wrapping="false"/></Column>
             <Column width="7rem"  hAlign="Center"><Text text="PO Date"           tooltip="Purchase Order Date" wrapping="false"/></Column>
             <!-- Hidden popin column — holds L2 expansion -->
             <Column minScreenWidth="10000px" demandPopin="true" popinDisplay="WithoutHeader"><Text text=""/></Column>
@@ -38,6 +39,10 @@
                     <ObjectIdentifier title="{excelModel>PONumber}"/>
                     <Text text="{excelModel>VendorCode}"  wrapping="false"/>
                     <Text text="{excelModel>VendorName}"  wrapping="false"/>
+                    <ObjectStatus inverted="true"
+                    tooltip="{= ${excelModel>EDIHFlag} === 'E' ? 'EDI' : 'SAP'}"
+                    text="{= ${excelModel>EDIHFlag} === 'E' ? 'EDI' : 'SAP'}"
+                    state="{= ${excelModel>EDIHFlag} === 'E' ? 'Warning' : 'Information'}"/>
                     <Text text="{path: 'excelModel>PODate', formatter: '.formattter.formatDate'}" wrapping="false"/>
 
                     <!-- L2 expands here as a full-width popin cell -->
@@ -76,7 +81,8 @@
                                     <Column width="5.5rem" hAlign="End"  ><Text text="Net Price"    tooltip="Net Price" wrapping="false"/></Column>
                                     <Column width="3.5rem" hAlign="Center"><Text text="Curr."       tooltip="Currency" wrapping="false"/></Column>
                                     <Column width="3rem"   hAlign="Center"><Text text="Per"         tooltip="Price Per Unit" wrapping="false"/></Column>
-                                    <Column width="5.5rem" hAlign="Begin"><Text text="Mat. Group"   tooltip="Material Group" wrapping="false"/></Column>
+                                    <!-- <Column width="5.5rem" hAlign="Begin"><Text text="Mat. Group"   tooltip="Material Group" wrapping="false"/></Column> -->
+                                    <Column width="5.5rem" hAlign="Begin"><Text text="Status"   tooltip="Status" wrapping="false"/></Column>
                                     <Column width="4rem"   hAlign="Center"><Text text="Plant"       tooltip="Plant" wrapping="false"/></Column>
                                     <Column width="4.5rem" hAlign="Center"><Text text="Stor. Loc."  tooltip="Storage Location" wrapping="false"/></Column>
                                     <!-- Hidden popin column — holds L3 expansion -->
@@ -98,7 +104,12 @@
                                             <Text text="{excelModel>NetPrice}"        wrapping="false" tooltip="{excelModel>NetPrice}"/>
                                             <Text text="{excelModel>Currency}"        wrapping="false" tooltip="{excelModel>Currency}"/>
                                             <Text text="{excelModel>Per}"             wrapping="false" tooltip="{excelModel>Per}"/>
-                                            <Text text="{excelModel>MaterialGroup}"   wrapping="false" tooltip="{excelModel>MaterialGroup}"/>
+                                            <!-- <Text text="{excelModel>MaterialGroup}"   wrapping="false" tooltip="{excelModel>MaterialGroup}"/> -->
+                                            <!-- <Text text="{excelModel>EDILIFlag}"   wrapping="false" tooltip="{excelModel>EDILIFlag}"/> -->
+                                            <ObjectStatus inverted="true"
+                                                tooltip="{= ${excelModel>EDILIFlag} === 'E' ? 'EDI' : 'SAP'}"
+                                                text="{= ${excelModel>EDILIFlag} === 'E' ? 'EDI' : 'SAP'}"
+                                                state="{= ${excelModel>EDILIFlag} === 'E' ? 'Warning' : 'Information'}"/>
                                             <Text text="{excelModel>Plant}"           wrapping="false" tooltip="{excelModel>Plant}"/>
                                             <Text text="{excelModel>StorageLocation}" wrapping="false" tooltip="{excelModel>StorageLocation}"/>
 
@@ -123,7 +134,7 @@
                                                             backgroundDesign="Transparent"
                                                             sticky="ColumnHeaders"
                                                             fixedLayout="Strict"
-                                                            width="86rem"
+                                                            width="91rem"
                                                             contextualWidth="Auto"
                                                             items="{excelModel>children}"
                                                         >
@@ -137,6 +148,7 @@
 
                                                             <columns>
                                                                 <Column width="11rem"   hAlign="Center"><Text text="Action"        tooltip="Action" wrapping="false"/></Column>
+                                                                <Column width="4rem"   hAlign="Begin"><Text text="EDI"        tooltip="EDI" wrapping="false"/></Column>
                                                                 <Column width="5.5rem" hAlign="End"   ><Text text="Quantity"      tooltip="Confirmation Quantity" wrapping="false"/></Column>
                                                                 <Column width="8rem"   hAlign="Center"><Text text="Delivery Date" tooltip="Delivery Date" wrapping="false"/></Column>
                                                                 <Column width="3.5rem" hAlign="Center"><Text text="Item"          tooltip="Item Number" wrapping="false"/></Column>
@@ -170,14 +182,14 @@
                                                                                 type="Success"
                                                                                 tooltip="Accept this confirmation row"
                                                                                 press=".onAcceptVendorTreeRow"
-                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'A'||${excelModel>EDIFlag} !== 'X' ? false : true }"
+                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'A'||${excelModel>EDIFlag} !== 'E'? false : true }"
                                                                                 class="poActionBtn"/>
                                                                             <Button
                                                                                 icon="sap-icon://decline"
                                                                                 type="Negative"
                                                                                 tooltip="Reject this confirmation row"
                                                                                 press=".onRejectVendorTreeRow"
-                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'R'||${excelModel>EDIFlag} !== 'X' ? false : true }"
+                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'R'||${excelModel>EDIFlag} !== 'E'? false : true }"
                                                                                 class="poActionBtn"/>
                                                                             <Button
                                                                                 icon="sap-icon://comment"
@@ -193,6 +205,10 @@
                                                                                 press=".handleQlikPopoverPress"
                                                                                 class="poActionBtn"/>
                                                                         </FlexBox>
+                                                                        <ObjectStatus inverted="true"
+                                                                            tooltip="{= ${excelModel>EDIFlag} === 'E' ? 'EDI' : 'SAP'}"
+                                                                            text="{= ${excelModel>EDIFlag} === 'E' ? 'EDI' : 'SAP'}"
+                                                                            state="{= ${excelModel>EDIFlag} === 'E' ? 'Warning' : 'Information'}"/>
                                                                         <Input value="{
                                                                                     path: 'excelModel>Quantity',
                                                                                     type: 'sap.ui.model.type.String',
