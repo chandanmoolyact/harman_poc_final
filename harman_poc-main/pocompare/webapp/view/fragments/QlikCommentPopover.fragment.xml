@@ -5,7 +5,7 @@
         id="myQlikPopover"
         title="Qlik Details"
         class="sapUiContentPadding"
-        placement="Left"
+        placement="Right"   
         initialFocus="idClose">
         <footer>
             <OverflowToolbar>

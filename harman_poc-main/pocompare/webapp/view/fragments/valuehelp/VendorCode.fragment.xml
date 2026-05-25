@@ -1,0 +1,20 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core">
+	<SelectDialog
+		noDataText="No Vendors Found"
+		title="Select Vendors"
+		search=".onSearch"
+		searchPlaceholder="Search Vendors"
+		confirm=".onValueHelpDialogClose"
+		cancel=".onValueHelpDialogClose"
+		showClearButton="true"
+		items="{
+			path: 'valueHelpModel>/VendorHelp'
+		}">
+		<StandardListItem
+			title="{valueHelpModel>VendorCode}"  
+			description="{valueHelpModel>VendorName}"
+			type="Active" />
+	</SelectDialog>
+</core:FragmentDefinition>

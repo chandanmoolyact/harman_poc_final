@@ -123,7 +123,7 @@
                                                             backgroundDesign="Transparent"
                                                             sticky="ColumnHeaders"
                                                             fixedLayout="Strict"
-                                                            width="95rem"
+                                                            width="86rem"
                                                             contextualWidth="Auto"
                                                             items="{excelModel>children}"
                                                         >
@@ -136,17 +136,17 @@
                                                             </headerToolbar>
 
                                                             <columns>
-                                                                <Column width="8.5rem"   hAlign="Center"><Text text="Action"        tooltip="Action" wrapping="false"/></Column>
+                                                                <Column width="11rem"   hAlign="Center"><Text text="Action"        tooltip="Action" wrapping="false"/></Column>
                                                                 <Column width="5.5rem" hAlign="End"   ><Text text="Quantity"      tooltip="Confirmation Quantity" wrapping="false"/></Column>
                                                                 <Column width="8rem"   hAlign="Center"><Text text="Delivery Date" tooltip="Delivery Date" wrapping="false"/></Column>
                                                                 <Column width="3.5rem" hAlign="Center"><Text text="Item"          tooltip="Item Number" wrapping="false"/></Column>
-                                                                <Column width="4.5rem" hAlign="Center"><Text text="HL Item"       tooltip="Higher-Level Item" wrapping="false"/></Column>
-                                                                <Column width="4rem"   hAlign="Center"><Text text="Status"        tooltip="Rejection Status" wrapping="false"/></Column>
+                                                                <!-- <Column width="4.5rem" hAlign="Center"><Text text="HL Item"       tooltip="Higher-Level Item" wrapping="false"/></Column> -->
+                                                                <Column width="4rem"   hAlign="Center"><Text text="Status"        tooltip="Status" wrapping="false"/></Column>
                                                                 <Column width="3rem"   hAlign="Center"><Text text="CC"            tooltip="Confirmation Category" wrapping="false"/></Column>
                                                                 <Column width="2.5rem" hAlign="Center"><Text text="D"             tooltip="Delivery Date Category" wrapping="false"/></Column>
                                                                 <Column width="9rem"   hAlign="Begin" ><Text text="Reference"     tooltip="Reference Document" wrapping="false"/></Column>
                                                                 <Column width="7.5rem" hAlign="Begin" ><Text text="Inbound Del."  tooltip="Inbound Delivery" wrapping="false"/></Column>
-                                                                <Column width="5.5rem" hAlign="Begin" ><Text text="Batch"         tooltip="Batch Number" wrapping="false"/></Column>
+                                                                <!-- <Column width="5.5rem" hAlign="Begin" ><Text text="Batch"         tooltip="Batch Number" wrapping="false"/></Column> -->
                                                                 <Column width="4.5rem" hAlign="Center"><Text text="Qty Red."      tooltip="Quantity Reduced" wrapping="false"/></Column>
                                                                 <Column width="4.5rem" hAlign="Center"><Text text="MRP Rel."      tooltip="MRP Relevant" wrapping="false"/></Column>
                                                                 <Column width="7.5rem" hAlign="Begin" ><Text text="MRP Material"  tooltip="MRP Material" wrapping="false"/></Column>
@@ -163,21 +163,28 @@
                                                                                 type="Reject"
                                                                                 tooltip="Delete this confirmation row"
                                                                                 press=".onDeleteVendorTreeRow"
-                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>RejectFlag} === 'X' ? false : true }"
+                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'R' ? false : true }"
+                                                                                class="poActionBtn"/>
+                                                                            <Button
+                                                                                icon="sap-icon://accept"
+                                                                                type="Success"
+                                                                                tooltip="Accept this confirmation row"
+                                                                                press=".onAcceptVendorTreeRow"
+                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'A'||${excelModel>EDIFlag} !== 'X' ? false : true }"
                                                                                 class="poActionBtn"/>
                                                                             <Button
                                                                                 icon="sap-icon://decline"
                                                                                 type="Negative"
                                                                                 tooltip="Reject this confirmation row"
                                                                                 press=".onRejectVendorTreeRow"
-                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>RejectFlag} === 'X' ? false : true }"
+                                                                                enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'R'||${excelModel>EDIFlag} !== 'X' ? false : true }"
                                                                                 class="poActionBtn"/>
                                                                             <Button
                                                                                 icon="sap-icon://comment"
                                                                                 type="Emphasized"
                                                                                 tooltip="Add or view remarks"
                                                                                 press=".handlePopoverPress"
-                                                                                enabled="{= ${excelModel>RejectFlag} !== 'X' ? false : true }"
+                                                                                enabled="{= ${excelModel>StatusFlag} !== 'R' ? false : true }"
                                                                                 class="poActionBtn"/>
                                                                             <Button
                                                                                 icon="sap-icon://detail-view"
@@ -193,33 +200,33 @@
                                                                                         search: '^[0-9]+$'
                                                                                     }
                                                                                 }"
-                                                                                editable="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>RejectFlag} === 'X' ? false : true }"
+                                                                                editable="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'R' ? false : true }"
                                                                                 tooltip="{excelModel>Quantity}"
                                                                                 liveChange=".onQuantityLiveChange"/>
                                                                         <DatePicker
                                                                             valueState="{excelModel>DateState}"
                                                                             valueStateText="{excelModel>DateMsg}"
                                                                             value="{excelModel>CreationDate}"
-                                                                            enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>RejectFlag} === 'X' ? false : true }"
+                                                                            enabled="{= ${excelModel>ConfirmationCategory} === 'LA' || ${excelModel>StatusFlag} === 'R' ? false : true }"
                                                                             valueFormat="MM/dd/yyyy"  
                                                                             displayFormat="MM/dd/yyyy"
                                                                             placeholder="MM/DD/YYYY"
                                                                             change="onDateLiveChange"
                                                                             tooltip="{excelModel>CreationDate}"/>
                                                                         <Text text="{excelModel>Item}"                 wrapping="false"/>
-                                                                        <Text text="{excelModel>HLItem}"               wrapping="false"/>
-                                                                        <ObjectStatus inverted="true"
-                                                                            tooltip="{= ${excelModel>RejectFlag} === 'X' ? 'Rejected' : 'NA'}"
-                                                                            text="{= ${excelModel>RejectFlag} === 'X' ? 'Rejected' : 'NA'}"
-                                                                            state="{= ${excelModel>RejectFlag} === 'X' ? 'Error' : 'Information'}"/>
+                                                                        <!-- <Text text="{excelModel>HLItem}"               wrapping="false"/> -->
+                                                                       <ObjectStatus inverted="true"
+                                                                            tooltip="{= ${excelModel>StatusFlag} === 'R' ? 'Rejected' : (${excelModel>StatusFlag} === 'A' ? 'Approved' : 'NA')}"
+                                                                            text="{= ${excelModel>StatusFlag} === 'R' ? 'Rejected' : (${excelModel>StatusFlag} === 'A' ? 'Approved' : 'NA')}"
+                                                                            state="{= ${excelModel>StatusFlag} === 'R' ? 'Error' : (${excelModel>StatusFlag} === 'A' ? 'Success' : 'Information')}"/>
                                                                         <Text text="{excelModel>ConfirmationCategory}" wrapping="false"/>
                                                                         <Text text="{excelModel>FDDCategory}"          wrapping="false"/>
-                                                                        <Input value="{excelModel>Reference}"    editable="{= ${excelModel>newRecFlag} === false || ${excelModel>RejectFlag} === 'X' ? false : true }" tooltip="{excelModel>Reference}"/>
+                                                                        <Input value="{excelModel>Reference}"    editable="{= ${excelModel>newRecFlag} === false || ${excelModel>StatusFlag} === 'R' ? false : true }" tooltip="{excelModel>Reference}"/>
                                                                         <Text text="{excelModel>InboundDelivery}"       wrapping="false"/>
-                                                                        <Input value="{excelModel>Batch}"        editable="{= ${excelModel>newRecFlag} === false || ${excelModel>RejectFlag} === 'X' ? false : true }" tooltip="{excelModel>Batch}"/>
+                                                                        <!-- <Input value="{excelModel>Batch}"        editable="{= ${excelModel>newRecFlag} === false || ${excelModel>StatusFlag} === 'X' ? false : true }" tooltip="{excelModel>Batch}"/> -->
                                                                         <Text text="{excelModel>QtyReduced}"           wrapping="false"/>
                                                                         <Text text="{excelModel>MRPRelevant}"          wrapping="false"/>
-                                                                        <Input value="{excelModel>MRPMaterial}"  editable="{= ${excelModel>newRecFlag} === false || ${excelModel>RejectFlag} === 'X' ? false : true }" tooltip="{excelModel>MRPMaterial}"/>
+                                                                        <Input value="{excelModel>MRPMaterial}"  editable="{= ${excelModel>newRecFlag} === false || ${excelModel>StatusFlag} === 'R' ? false : true }" tooltip="{excelModel>MRPMaterial}"/>
                                                                         <Text text="{excelModel>CreationIndicator}"    wrapping="false"/>
                                                                         <Text text="{excelModel>SequenceNumber}"       wrapping="false"/>
                                                                     </cells>

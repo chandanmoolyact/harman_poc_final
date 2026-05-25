@@ -1,18 +1,21 @@
 sap.ui.define([
     "sap/ui/core/mvc/Controller",
     "sap/ui/model/json/JSONModel",
+    "sap/ui/model/Filter",
+    "sap/ui/model/FilterOperator",
     "sap/m/MessageToast",
     "sap/m/MessageBox",
     "sap/ui/export/Spreadsheet",
     "com/sap/pocompare/model/formatter",
     "sap/ui/core/Fragment"
-], (Controller,JSONModel,MessageToast,MessageBox,Spreadsheet,formatter,Fragment) => {
+], (Controller,JSONModel,Filter,FilterOperator,MessageToast,MessageBox,Spreadsheet,formatter,Fragment) => {
     "use strict";
-    var that=this;
+    var that;
 
     return Controller.extend("com.sap.pocompare.controller.First", {
         formattter:formatter,
         onInit() {
+            that=this
             // Initialize the model that will hold our Excel data
             var oModel = new JSONModel({
                 data: []
@@ -20,11 +23,257 @@ sap.ui.define([
             this.getOwnerComponent().setModel(oModel, "excelModel");
             this.lineItemFlag=true
             this.sublineItemFlag=true
+            this.oFilterBar=this.getView().byId("idTreeFilterBar")
+            
         },
-
         onAfterRendering: function () {
+            // this.oAdaptFilterBtn=sap.ui.getCore().byId("container-com.sap.pocompare---First--idTreeFilterBar-btnFilters-content")
+            // this.oAdaptFilterBtn.setVisible(false)
             this._injectL3ScrollStyles();
             this._patchL3ScrollDom();
+        },
+
+        //Value Help Start
+        getUniqueValueHelpDesc: function (data) {
+            // 1. Use Maps to ensure uniqueness by Code, while holding the Description
+            const materialMap = new Map();
+            const vendorMap = new Map();
+            const poSet = new Set(); // PO doesn't have a separate description field in the JSON
+
+            data.forEach(item => {
+                // Material + Description
+                if (item.Material && !materialMap.has(item.Material)) {
+                    materialMap.set(item.Material, item.MaterialDesc || "");
+                }
+                // Vendor + Description (VendorName)
+                if (item.VendorCode && !vendorMap.has(item.VendorCode)) {
+                    vendorMap.set(item.VendorCode, item.VendorName || "");
+                }
+                // PO Number
+                if (item.PONumber) {
+                    poSet.add(item.PONumber);
+                }
+            });
+
+            // 2. Convert Maps/Sets into sorted arrays of objects for UI binding
+            return {
+                MaterialHelp: Array.from(materialMap.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([code, desc]) => ({
+                        MaterialCode: code,
+                        MaterialDesc: desc
+                    })),
+                    
+                VendorHelp: Array.from(vendorMap.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([code, name]) => ({
+                        VendorCode: code,
+                        VendorName: name
+                    })),
+
+                POHelp: Array.from(poSet)
+                    .sort()
+                    .map(po => ({
+                        PONumber: po
+                    }))
+            };
+            
+        },
+        onValueHelpRequest: function (oEvent) {
+            var oView = this.getView();
+            
+            // 1. Get the ID of the control that triggered the event
+            // e.g., "idMaterialCodeInput" or "container-pocompare---main--idMaterialCodeInput"
+            var sSourceId = oEvent.getSource().getId();
+            
+            // 2. Extract the base field name (MaterialCode, PONumber, or VendorCode)
+            var sFieldName = "";
+            if (sSourceId.includes("idMaterialCodeInput")) {
+                sFieldName = "MaterialCode";
+            } else if (sSourceId.includes("idPONumberInput")) {
+                sFieldName = "PONumber";
+            } else if (sSourceId.includes("idVendorCodeInput")) {
+                sFieldName = "VendorCode";
+            } else {
+                return; // Unrecognized input field
+            }
+
+            // 3. Initialize a map to hold the separate dialog promises if it doesn't exist yet
+            if (!this._mValueHelpDialogs) {
+                this._mValueHelpDialogs = {};
+            }
+
+            // 4. Load the specific fragment dynamically if it hasn't been loaded before
+            if (!this._mValueHelpDialogs[sFieldName]) {
+                this._mValueHelpDialogs[sFieldName] = Fragment.load({
+                    id: oView.getId(),
+                    // Dynamically constructs: "com.sap.pocompare.view.fragments.valuehelp.MaterialCode" etc.
+                    name: "com.sap.pocompare.view.fragments.valuehelp." + sFieldName,
+                    controller: this
+                }).then(function (oValueHelpDialog) {
+                    oView.addDependent(oValueHelpDialog);
+                    return oValueHelpDialog;
+                });
+            }
+
+            // 5. Open the correct dialog
+            this._mValueHelpDialogs[sFieldName].then(function (oValueHelpDialog) {
+                // Pass the field name to your config function if it needs context
+                // this._configValueHelpDialog(sFieldName); 
+                this._sFieldInputName ="id"+ sFieldName+"Input"; // Store the current field name for use in the dialog's logic
+                this._sFieldName =sFieldName // Store the current field name for use in the dialog's logic
+                oValueHelpDialog.open();
+            }.bind(this));
+        },
+        onSearch: function (oEvent) {
+			var sValue = oEvent.getParameter("value");
+			var oFilter = new Filter(this._sFieldName, FilterOperator.Contains, sValue);
+			var oBinding = oEvent.getParameter("itemsBinding");
+			oBinding.filter([oFilter]);
+		},
+        onValueHelpDialogClose: function (oEvent) {
+			var oSelectedItem = oEvent.getParameter("selectedItem"),
+				oInput = this.byId(this._sFieldInputName);
+
+			if (!oSelectedItem) {
+				oInput.resetProperty("value");
+				return;
+			}
+
+			oInput.setValue(oSelectedItem.getTitle());
+		},
+
+        //Value Help End
+
+        //Filter Bar Logic Start
+
+        // onSearchFilterBar: function () {
+        //     var oModel = this.getView().getModel("excelModel");
+        //     // Backup your original unfiltered dataset to a window/controller property during your original load:
+        //     if (!this._oOriginalData) {
+        //         this._oOriginalData = JSON.parse(JSON.stringify(oModel.getProperty("/data")));
+        //     }
+
+        //     // 1. Extract search criteria from inputs dynamically
+        //     var oFilters = {};
+        //     this.oFilterBar.getFilterGroupItems().forEach(function (oItem) {
+        //         var sValue = oItem.getControl().getValue();
+        //         if (sValue) {
+        //             oFilters[oItem.getName()] = sValue.toLowerCase().trim();
+        //         }
+        //     });
+
+        //     // If no filters are applied, restore full dataset
+        //     if (Object.keys(oFilters).length === 0) {
+        //         oModel.setProperty("/data", JSON.parse(JSON.stringify(this._oOriginalData)));
+        //         return;
+        //     }
+
+        //     // 2. Recursive Deep-Tree Filtering function
+        //     function filterTree(aNodes) {
+        //         return aNodes.filter(function (oNode) {
+        //             // Check if current node matches ANY of the active filter fields
+        //             var bCurrentNodeMatches = Object.keys(oFilters).some(function (sKey) {
+        //                 return oNode[sKey] && String(oNode[sKey]).toLowerCase().includes(oFilters[sKey]);
+        //             });
+
+        //             // Recursively look into children arrays if they exist
+        //             if (oNode.children && oNode.children.length > 0) {
+        //                 var aFilteredChildren = filterTree(oNode.children);
+        //                 if (aFilteredChildren.length > 0) {
+        //                     oNode.children = aFilteredChildren;
+        //                     // Auto-expand parents that contain matching child criteria
+        //                     oNode.PanelVisible = true; 
+        //                     oNode.NextPanelVisible = true;
+        //                     return true; 
+        //                 }
+        //             }
+
+        //             return bCurrentNodeMatches;
+        //         });
+        //     }
+
+        //     // 3. Process, deep-clone and update model binding
+        //     var aDeepCopyOfData = JSON.parse(JSON.stringify(this._oOriginalData));
+        //     var aFilteredData = filterTree(aDeepCopyOfData);
+            
+        //     oModel.setProperty("/data", aFilteredData);
+        // },
+        onSearchFilterBar: function () {
+            var oModel = this.getView().getModel("excelModel");
+            
+            // 1. Keep a pristine copy of your original dataset
+            if (!this._oOriginalData) {
+                this._oOriginalData = JSON.parse(JSON.stringify(oModel.getProperty("/data")));
+            }
+
+            // 2. Extract active filter criteria from the FilterBar
+            var oActiveFilters = {};
+            this.oFilterBar.getFilterGroupItems().forEach(function (oItem) {
+                var sValue = oItem.getControl().getValue();
+                if (sValue) {
+                    oActiveFilters[oItem.getName()] = sValue.toLowerCase().trim();
+                }
+            });
+
+            var aFilterKeys = Object.keys(oActiveFilters);
+
+            // If no filters are filled out, instantly restore original tree and exit
+            if (aFilterKeys.length === 0) {
+                oModel.setProperty("/data", JSON.parse(JSON.stringify(this._oOriginalData)));
+                return;
+            }
+
+            // 3. Deep evaluation function to ensure ALL active filter keys are satisfied in this branch
+            function evaluateAndFilterTree(aNodes, aPendingKeys) {
+                if (!aNodes || aNodes.length === 0) { return []; }
+
+                return aNodes.map(function (oNode) {
+                    // Create a deep copy of the node so we don't manipulate the master array
+                    var oClonedNode = Object.assign({}, oNode);
+
+                    // Check which of the remaining filter keys match the current node level
+                    var aMatchedKeysAtThisLevel = aPendingKeys.filter(function (sKey) {
+                        return oClonedNode[sKey] && String(oClonedNode[sKey]).toLowerCase().includes(oActiveFilters[sKey]);
+                    });
+
+                    // Calculate remaining filter keys that still need to be satisfied by children
+                    var aRemainingKeys = aPendingKeys.filter(function (sKey) {
+                        return !aMatchedKeysAtThisLevel.includes(sKey);
+                    });
+
+                    // If this node has sub-items (children), dig deeper with the remaining un-matched filters
+                    if (oClonedNode.children && oClonedNode.children.length > 0) {
+                        // If a parent node already matched everything, children just inherit all filters as satisfied
+                        var aKeysToPassDown = aRemainingKeys; 
+                        
+                        var aFilteredChildren = evaluateAndFilterTree(oClonedNode.children, aKeysToPassDown);
+                        
+                        if (aFilteredChildren.length > 0) {
+                            oClonedNode.children = aFilteredChildren;
+                            // Automatically keep hierarchy open to show where the matches occurred
+                            oClonedNode.PanelVisible = true;
+                            oClonedNode.NextPanelVisible = true;
+                            
+                            // If children successfully cleared out all remaining criteria, this node is valid!
+                            return oClonedNode;
+                        }
+                    }
+
+                    // If there are no children left, but we satisfied ALL active filters along this path:
+                    if (aRemainingKeys.length === 0) {
+                        return oClonedNode;
+                    }
+
+                    return null; // Drop this node; it didn't fulfill the "AND" requirements
+                }).filter(Boolean); // Clear out null entries
+            }
+
+            // 4. Run the data clone through the custom AND pipeline and update view
+            var aDeepCopyOfData = JSON.parse(JSON.stringify(this._oOriginalData));
+            var aFilteredData = evaluateAndFilterTree(aDeepCopyOfData, aFilterKeys);
+            
+            oModel.setProperty("/data", aFilteredData);
         },
 
         /**
@@ -140,14 +389,38 @@ sap.ui.define([
                 });
             }
         },
-        onClearFile: function () {
-            this.byId("excelUploader").clear();
-            this.getView().getModel("excelModel").setProperty("/data", []);
+        onClearFile: function () {  
+            // sap.m.MessageBox.confirm("Are you sure you want to clear data? Unsaved changes will be lost.", {
+            //     title: "Clear Data",
+            //     onClose: function (oAction) {
+            //         // 3. Only proceed if the user clicked 'OK'
+            //         if (oAction === sap.m.MessageBox.Action.OK) {
+                        this.byId("excelUploader").clear();
+                        this.getView().getModel("excelModel").setProperty("/data", []);
+            //         }
+            //     }.bind(this) // Crucial: bind 'this' so you can still access this.convertLIFlag
+            // });
             // this._headerFB.setVisible(false)
         },
         onCancelTemplate: function () {
-            this.byId("excelUploader").clear();
-            this.getView().getModel("excelModel").setProperty("/data", []);
+            let aExcelInputData=this.getView().getModel("excelModel")?.getProperty("/data");
+            if(aExcelInputData?.length>0){
+                    sap.m.MessageBox.confirm("Are you sure you want to clear data? Unsaved changes will be lost.", {
+                    title: "Clear Data",
+                    onClose: function (oAction) {
+                        // 3. Only proceed if the user clicked 'OK'
+                        if (oAction === sap.m.MessageBox.Action.OK) {
+                            this.byId("excelUploader").clear();
+                            this.getView().getModel("excelModel").setProperty("/data", []);
+                        }
+                    }.bind(this) // Crucial: bind 'this' so you can still access this.convertLIFlag
+                });
+
+            }else{
+                // this.byId("excelUploader").setValueState("Information").setValueStateText("No data to clear.");
+                MessageToast.show("No data to clear.");
+            }
+            
             // this._headerFB.setVisible(false)
         },
 
@@ -232,9 +505,9 @@ sap.ui.define([
                         MRPMaterial: row["MPN Material"]||row["MPN material"],
                         CreationIndicator: row["Creation Indicator"]||row["Creation Indicator"],
                         SequenceNumber: row["Sequence Number"]||row["Sequence number"],
-                        RejectFlag: row["Rejected"],
+                        StatusFlag: row["Status"],
                         RejectReason: row["Comment"],
-                        RejectReason: row["Comment"],
+                        ActionDate: formatDate(row["Action Date"]),
                         EmailFlag: row["Email Flag"]||row["EmailFlag"],   
                         QlikQty: row["Qlik Qty"] || row["QLIK Qty"],
                         QlikDate: formatDate(row["Qlik Date"] || row["QLIK Date"]),
@@ -242,12 +515,12 @@ sap.ui.define([
                         DateMsg: "",
                         // These are the properties our validation logic uses!
                         //Status 4
-                        StatusCode:"1",
-                        Status:"New",
-                        StatusState:formatter.stateFormatter("1"),
-                        StatusMsg:formatter.statusDescription("1"),
                     };
                 });
+
+                const valueHelpData=that.getUniqueValueHelpDesc(formattedData);
+                const oValueHelpModel = new JSONModel(valueHelpData);
+                that.getOwnerComponent().setModel(oValueHelpModel, "valueHelpModel");
 
                 let newData= that.transformDataForTreeTable(formattedData)
                 let aDateNewData=that._processData(newData)
@@ -341,15 +614,12 @@ sap.ui.define([
                     MRPRelevant: item.MRPRelevant,
                     MRPMaterial: item.MRPMaterial,
                     CreationIndicator: item.CreationIndicator,
-                    Status: 1,
                     newRecFlag:false,
-                    RejectFlag:item.RejectFlag,
+                    StatusFlag:item.StatusFlag,
                     RejectReason:item.RejectReason,
                     QlikQty: item.QlikQty,
                     QlikDate: item.QlikDate,
-                    RejectDate:item.RejectDate,   
-                    StatusState: formatter.stateFormatter("1"),
-                    StatusMsg: formatter.statusDescription("1"),
+                    ActionDate:item.ActionDate,   
                     DateState: "None",
                     DateMsg: "",
                     EmailFlag: item.EmailFlag
@@ -457,15 +727,13 @@ sap.ui.define([
                 { label: 'MPN Material', property: 'MRPMaterial', type: 'string' },
                 { label: 'Creation Indicator', property: 'CreationIndicator', type: 'string' },
                 { label: 'Sequence Number', property: 'SequenceNumber', type: 'string' },
-                { label: 'Rejected', property: 'RejectFlag', type: 'string' },
+                { label: 'Status', property: 'StatusFlag', type: 'string' },
                 { label: 'Comment', property: 'RejectReason', type: 'string' },
                 { label: 'Qlik Qty', property: 'QlikQty', type: 'string' },
                 { label: 'Qlik Date', property: 'QlikDate', type: 'string' },
-                { label: 'Rejection Date', property: 'RejectDate', type: 'string' },
+                { label: 'Rejection Date', property: 'ActionDate', type: 'string' },
                 { label: 'Email Flag', property: 'EmailFlag', type: 'string' },
                 // Level 4
-                { label: 'Status', property: 'Status', type: 'string' },
-                { label: 'StatusMsg', property: 'StatusMsg', type: 'string' },
             ];
             // 3. Configure and start the export
             var dNewDate=new Date().toLocaleString()
@@ -666,14 +934,12 @@ sap.ui.define([
                                     CreationIndicator: subItemNode.CreationIndicator,
                                     SequenceNumber: subItemNode.SequenceNumber,
 
-                                    RejectFlag:subItemNode.RejectFlag,
+                                    StatusFlag:subItemNode.StatusFlag,
                                     RejectReason:subItemNode.RejectReason,
-                                    RejectDate:subItemNode.RejectDate, 
+                                    ActionDate:subItemNode.ActionDate, 
                                     QlikQty: subItemNode.QlikQty,
                                     QlikDate: subItemNode.QlikDate,
-                                    EmailFlag: subItemNode.EmailFlag,
-                                    Status:subItemNode.Status,
-                                    StatusMsg:subItemNode.StatusMsg
+                                    EmailFlag: subItemNode.EmailFlag
                                 };
                                 flatData.push(flatRow);
                             });
@@ -778,8 +1044,6 @@ sap.ui.define([
                 CreationIndicator: oVendorObject?.CreationIndicator,
                 SequenceNumber: iSNum,
                 newRecFlag:true,
-                StatusMsg:formatter.statusDescription("1"),
-                StatusState:formatter.stateFormatter("1"),
                 DateMsg:oVendorObject?.DateMsg,
                 DateState:oVendorObject?.DateState,
                 QlikDate: oVendorObject?.QlikDate,
@@ -863,10 +1127,10 @@ sap.ui.define([
 
                             var sActivePath = this.oRejectDialog.data("activePath");
 
-                            oModel.setProperty(sActivePath + "/RejectFlag", "X");
+                            oModel.setProperty(sActivePath + "/StatusFlag", "R");
                             oModel.setProperty(sActivePath + "/RejectReason", sReason);
                             var oToday = new Date().toLocaleDateString(); 
-                            oModel.setProperty(sActivePath + "/RejectDate", oToday);
+                            oModel.setProperty(sActivePath + "/ActionDate", oToday);
                             oModel.refresh(true);
                             sap.m.MessageToast.show("Record rejected successfully.");
                             
@@ -885,34 +1149,6 @@ sap.ui.define([
             }
             this.oRejectDialog.data("activePath", sRejPath);
             this.oRejectDialog.open();
-        },
-        onApprovePress: function (oEvent) {
-            MessageToast.show("Line Item Approved!");
-            this._closeDialog();
-        },
-        onRejectPress: function (oEvent) {
-            MessageToast.show("Line Item Rejected!");
-            this._closeDialog();
-        },
-        onActionTaken:function(oEvent){
-            let sButtonText=oEvent.getSource().getText()
-            var oButton = oEvent.getSource();
-            var oContext = oButton.getBindingContext("alSidePanel");
-            var sInnerRowPath = oContext.getPath();
-            var oModel = this.getOwnerComponent().getModel("excelModel");
-            var oSPModel = this.getOwnerComponent().getModel("alSidePanel");
-            let sChangePropertyStatus=sInnerRowPath+"/Status"
-            let sChangePropertyStatusMsg=sInnerRowPath+"/StatusMsg"
-            let sChangePropertyStatusState=sInnerRowPath+"/StatusState"
-            if(sButtonText=="Approve"){
-                oSPModel.setProperty(sChangePropertyStatus,2);
-                oSPModel.setProperty(sChangePropertyStatusMsg,formatter.statusDescription("2"));
-                oSPModel.setProperty(sChangePropertyStatusState,formatter.stateFormatter("2"));
-            }else if(sButtonText=="Reject"){
-                oSPModel.setProperty(sChangePropertyStatus,3);
-                oSPModel.setProperty(sChangePropertyStatusMsg,formatter.statusDescription("3"));
-                oSPModel.setProperty(sChangePropertyStatusState,formatter.stateFormatter("3"));
-            }
         },
         _closeDialog: function () {
             if (this._pCompareDialog) {

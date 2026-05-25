@@ -1,0 +1,20 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core">
+	<SelectDialog
+		noDataText="No Materials Found"
+		title="Select Material"
+		search=".onSearch"
+		searchPlaceholder="Search Materials"
+		confirm=".onValueHelpDialogClose"
+		cancel=".onValueHelpDialogClose"
+		showClearButton="true"
+		items="{
+			path: 'valueHelpModel>/MaterialHelp'
+		}">
+		<StandardListItem
+			title="{valueHelpModel>MaterialCode}"
+			description="{valueHelpModel>MaterialDesc}"
+			type="Active" />
+	</SelectDialog>
+</core:FragmentDefinition>

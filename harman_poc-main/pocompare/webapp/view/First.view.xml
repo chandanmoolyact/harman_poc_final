@@ -5,6 +5,8 @@
 		xmlns:f="sap.f"
 		xmlns:layout="sap.ui.layout"
 		xmlns:core="sap.ui.core"
+		xmlns:fb="sap.ui.comp.filterbar"
+		xmlns:svm="sap.ui.comp.smartvariants"
 		height="100%">
 
 	<f:DynamicPage
@@ -81,6 +83,87 @@
 							type="XML"/>
 					</content>
 				</Panel>
+						<fb:FilterBar id="idTreeFilterBar" persistencyKey="myPersKey" useToolbar="false" search=".onSearchFilterBar" filterChange=".onFilterChange" afterVariantLoad=".onAfterVariantLoad">
+							<fb:filterGroupItems>
+								<fb:FilterGroupItem name="PONumber" label="PO Number" groupName="Group1" visibleInFilterBar="true">
+									<fb:control>
+										<Input
+										id="idPONumberInput"
+											type="Text"
+											placeholder="Input PO Number"
+											showValueHelp="true"
+											showSuggestion="true"
+											suggestionItems="{valueHelpModel>/POHelp}"
+											valueHelpRequest=".onValueHelpRequest">
+												<suggestionItems>
+													<core:Item key="{valueHelpModel>PONumber}" />
+												</suggestionItems>
+										</Input>
+											
+									</fb:control>
+								</fb:FilterGroupItem>
+								<fb:FilterGroupItem name="VendorCode" label="Vendor Code" groupName="Group1" visibleInFilterBar="true">
+									<fb:control>
+										<Input
+										id="idVendorCodeInput"
+											type="Text"
+											placeholder="Input Vendor Code"
+											showValueHelp="true"
+											showSuggestion="true"
+											suggestionItems="{valueHelpModel>/VendorHelp}"
+											
+											suggestionItemSelected=".onSuggestionItemSelected"
+											valueHelpRequest=".onValueHelpRequest">
+												<suggestionItems>
+													<core:Item key="{valueHelpModel>VendorCode}" text="{valueHelpModel>VendorName}" />
+												</suggestionItems>
+										</Input>
+									</fb:control>
+								</fb:FilterGroupItem>
+								<fb:FilterGroupItem name="Material" label="Material Code" groupName="Group1" visibleInFilterBar="true">
+									<fb:control>
+										<Input
+										id="idMaterialCodeInput"
+											type="Text"
+											placeholder="Input Material Code"
+											showValueHelp="true"
+											showSuggestion="true"
+											suggestionItems="{valueHelpModel>/MaterialHelp}"
+											suggestionItemSelected=".onSuggestionItemSelected"
+											valueHelpRequest=".onValueHelpRequest">
+												<suggestionItems>
+													<core:Item key="{valueHelpModel>MaterialCode}" text="{valueHelpModel>MaterialDesc}" />
+												</suggestionItems>
+										</Input>
+									</fb:control>
+								</fb:FilterGroupItem>
+								<!-- <fb:FilterGroupItem name="Delivery Date Range" label="Delivery Date Range" groupName="Group1" visibleInFilterBar="true">
+									<fb:control>
+										<DateRangeSelection
+											placeholder="Select delivery date range"
+											id="DRS1"
+											class="DRS1"
+											value= "{
+												'type': 'sap.ui.model.type.DateInterval',
+												'formatOptions': {
+													'pattern': 'mm/dd/yyyy'
+												},
+												'parts': [
+													{
+														'type': 'sap.ui.model.type.Date',
+														'path': '/start'
+													},
+													{
+														'type': 'sap.ui.model.type.Date',
+														'path': '/end'
+													}
+												]
+											}"
+											change=".handleChange"/>
+									</fb:control>
+								</fb:FilterGroupItem> -->
+							</fb:filterGroupItems>
+						</fb:FilterBar>
 			</f:DynamicPageHeader>
 		</f:header>
 

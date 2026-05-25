@@ -1,0 +1,19 @@
+<core:FragmentDefinition
+	xmlns="sap.m"
+	xmlns:core="sap.ui.core">
+	<SelectDialog
+		noDataText="No PO Number Found"
+		title="Select PO Number"
+		search=".onSearch"
+		searchPlaceholder="Search PO Numbers"
+		confirm=".onValueHelpDialogClose"
+		cancel=".onValueHelpDialogClose"
+		showClearButton="true"
+		items="{
+			path: 'valueHelpModel>/POHelp'
+		}">
+		<StandardListItem
+			title="{valueHelpModel>PONumber}"
+			type="Active" />
+	</SelectDialog>
+</core:FragmentDefinition>
