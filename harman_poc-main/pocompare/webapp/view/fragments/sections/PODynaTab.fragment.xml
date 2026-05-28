@@ -42,6 +42,7 @@
                     <ObjectStatus inverted="true"
                     tooltip="{= ${excelModel>EDIHFlag} === 'E' ? 'EDI' : 'SAP'}"
                     text="{= ${excelModel>EDIHFlag} === 'E' ? 'EDI' : 'SAP'}"
+                    visible="{= ${excelModel>EDIHFlag} === 'E' ? true : false}"
                     state="{= ${excelModel>EDIHFlag} === 'E' ? 'Warning' : 'Information'}"/>
                     <Text text="{path: 'excelModel>PODate', formatter: '.formattter.formatDate'}" wrapping="false"/>
 
@@ -109,7 +110,8 @@
                                             <ObjectStatus inverted="true"
                                                 tooltip="{= ${excelModel>EDILIFlag} === 'E' ? 'EDI' : 'SAP'}"
                                                 text="{= ${excelModel>EDILIFlag} === 'E' ? 'EDI' : 'SAP'}"
-                                                state="{= ${excelModel>EDILIFlag} === 'E' ? 'Warning' : 'Information'}"/>
+                                                state="{= ${excelModel>EDILIFlag} === 'E' ? 'Warning' : 'Information'}"
+                                                visible="{= ${excelModel>EDILIFlag} === 'E' ? true : false}"/>
                                             <Text text="{excelModel>Plant}"           wrapping="false" tooltip="{excelModel>Plant}"/>
                                             <Text text="{excelModel>StorageLocation}" wrapping="false" tooltip="{excelModel>StorageLocation}"/>
 
@@ -206,7 +208,8 @@
                                                                                 class="poActionBtn"/>
                                                                         </FlexBox>
                                                                         <ObjectStatus inverted="true"
-                                                                            tooltip="{= ${excelModel>EDIFlag} === 'E' ? 'EDI' : 'SAP'}"
+                                                                            visible="{= ${excelModel>EDIFlag} === 'E' ? true : false}"
+                                                                            tooltip="{= ${excelModel>EDIFlag} === 'E' ? 'EDI' : 'SAP'}"   
                                                                             text="{= ${excelModel>EDIFlag} === 'E' ? 'EDI' : 'SAP'}"
                                                                             state="{= ${excelModel>EDIFlag} === 'E' ? 'Warning' : 'Information'}"/>
                                                                         <Input value="{
@@ -234,7 +237,8 @@
                                                                        <ObjectStatus inverted="true"
                                                                             tooltip="{= ${excelModel>StatusFlag} === 'R' ? 'Rejected' : (${excelModel>StatusFlag} === 'A' ? 'Approved' : 'NA')}"
                                                                             text="{= ${excelModel>StatusFlag} === 'R' ? 'Rejected' : (${excelModel>StatusFlag} === 'A' ? 'Approved' : 'NA')}"
-                                                                            state="{= ${excelModel>StatusFlag} === 'R' ? 'Error' : (${excelModel>StatusFlag} === 'A' ? 'Success' : 'Information')}"/>
+                                                                            state="{= ${excelModel>StatusFlag} === 'R' ? 'Error' : (${excelModel>StatusFlag} === 'A' ? 'Success' : 'Information')}"
+                                                                            />
                                                                         <Text text="{excelModel>ConfirmationCategory}" wrapping="false"/>
                                                                         <Text text="{excelModel>FDDCategory}"          wrapping="false"/>
                                                                         <Input value="{excelModel>Reference}"    editable="{= ${excelModel>newRecFlag} === false || ${excelModel>StatusFlag} === 'R' ? false : true }" tooltip="{excelModel>Reference}"/>

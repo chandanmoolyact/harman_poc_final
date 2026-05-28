@@ -141,20 +141,21 @@
 									<fb:control>
 										<DateRangeSelection
 											placeholder="Select Delivery Date Range"
-											id="DRS1"
+											id="idDelDateRange"
 											change=".handleDateRangeChange"/>
 									</fb:control>
 								</fb:FilterGroupItem>
 								<fb:FilterGroupItem name="EDIFlag" label="EDI Data" groupName="Group1" visibleInFilterBar="true">
 									<fb:control>
-										<Select
+										<ComboBox
+										id="idEDIFlagComboBox"
 										forceSelection="false"
 											change=".onEDIChange"   
 										>
 											<core:Item key="E" text="EDI"/>
 											<core:Item key="A" text="EDI Action"/>   
 											<core:Item key="S" text="SAP"/>   
-										</Select>
+										</ComboBox>
 									</fb:control>
 								</fb:FilterGroupItem>
 							</fb:filterGroupItems>

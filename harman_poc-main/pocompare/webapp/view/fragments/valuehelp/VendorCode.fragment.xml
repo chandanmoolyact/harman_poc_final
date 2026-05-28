@@ -8,7 +8,6 @@
 		searchPlaceholder="Search Vendors"
 		confirm=".onValueHelpDialogClose"
 		cancel=".onValueHelpDialogClose"
-		showClearButton="true"
 		items="{
 			path: 'valueHelpModel>/VendorHelp'
 		}">

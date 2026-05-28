@@ -171,9 +171,9 @@ sap.ui.define([
                 oActiveFilters[sName] = { isDateRange: true, start: oStart.getTime(), end: oEnd.getTime() };
             }
         } 
-        else if (sClassName === "sap.m.Select") {
+        else if (sClassName === "sap.m.ComboBox") {    
             var sSelectedKey = oControl.getSelectedKey();
-            if (sSelectedKey && sSelectedKey !== "") {
+            if (sSelectedKey && sSelectedKey !== "") {        
                 oActiveFilters[sName] = { isSelectKey: true, value: sSelectedKey.trim() };
             }
         } 
@@ -489,6 +489,7 @@ sap.ui.define([
             var aFiles = oEvent.getParameter("files");
             if (aFiles && aFiles.length > 0) {
                 var oFile = aFiles[0];
+                this.getView().getModel("excelModel").setProperty("/data", []);   
                 this._loadExternalLibrary("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js").then(function() {
                     this._readExcel(oFile);
                 }.bind(this))
@@ -512,13 +513,25 @@ sap.ui.define([
         },
         onCancelTemplate: function () {
             let aExcelInputData=this.getView().getModel("excelModel")?.getProperty("/data");
+
+            this.byId("excelUploader").clear();
+            this.byId("idPONumberInput").setValue();
+            this.byId("idVendorCodeInput").setValue();
+            this.byId("idMaterialCodeInput").setValue();
+            this.byId("idDelDateRange").setValue();
+            this.byId("idEDIFlagComboBox").setSelectedKey();
+
             if(aExcelInputData?.length>0){
                     sap.m.MessageBox.confirm("Are you sure you want to clear data? Unsaved changes will be lost.", {
                     title: "Clear Data",
                     onClose: function (oAction) {
                         // 3. Only proceed if the user clicked 'OK'
                         if (oAction === sap.m.MessageBox.Action.OK) {
-                            this.byId("excelUploader").clear();
+                            
+                            this.getView().getModel("excelModel").setProperty("/data", []);
+                            this.getOwnerComponent().getModel("valueHelpModel").setProperty("/MaterialHelp", []);
+                            this.getOwnerComponent().getModel("valueHelpModel").setProperty("/POHelp", []);  
+                            this.getOwnerComponent().getModel("valueHelpModel").setProperty("/VendorHelp", []);
                             this.getView().getModel("excelModel").setProperty("/data", []);
                         }
                     }.bind(this) // Crucial: bind 'this' so you can still access this.convertLIFlag
@@ -526,7 +539,7 @@ sap.ui.define([
 
             }else{
                 // this.byId("excelUploader").setValueState("Information").setValueStateText("No data to clear.");
-                MessageToast.show("No data to clear.");
+                MessageToast.show("No data to clear within table");
             }
             
             // this._headerFB.setVisible(false)
@@ -925,7 +938,7 @@ sap.ui.define([
         { label: 'Comment', property: 'RejectReason', type: 'string' },
         { label: 'Qlik Qty', property: 'QlikQty', type: 'string' },
         { label: 'Qlik Date', property: 'QlikDate', type: 'string' },
-        { label: 'Rejection Date', property: 'ActionDate', type: 'string' },
+        { label: 'Action Date', property: 'ActionDate', type: 'string' },
         { label: 'Email Flag', property: 'EmailFlag', type: 'string' },
         { label: 'EDI Flag', property: 'EDIFlag', type: 'string' }
     ];

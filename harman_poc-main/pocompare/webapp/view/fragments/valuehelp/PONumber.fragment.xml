@@ -8,7 +8,6 @@
 		searchPlaceholder="Search PO Numbers"
 		confirm=".onValueHelpDialogClose"
 		cancel=".onValueHelpDialogClose"
-		showClearButton="true"
 		items="{
 			path: 'valueHelpModel>/POHelp'
 		}">
